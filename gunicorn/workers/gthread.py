@@ -221,13 +221,20 @@ class ThreadWorker(base.Worker):
                                       return_when=futures.FIRST_COMPLETED)
             else:
                 # wait for a request to finish
-                # print(f'nr_conns is {self.nr_conns} limit is {self.worker_connections} waiting for requests to complete.')
+                print(f'nr_conns is {self.nr_conns} limit is {self.worker_connections} waiting for requests to complete.')
+                print(f'futures length: {len(self.futures)}')
                 result = futures.wait(self.futures, timeout=1.0,
                                       return_when=futures.FIRST_COMPLETED)
 
             # clean up finished requests
             for fut in result.done:
+                print(f'Remove future: {fut}')
                 self.futures.remove(fut)
+
+            for fut in result.not_done:
+                print(f'Not done: {fut}')
+                print(f'Running: {fut.running()}')
+                print(f'====')
 
             if not self.is_parent_alive():
                 break
