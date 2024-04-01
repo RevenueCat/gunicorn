@@ -221,7 +221,7 @@ class ThreadWorker(base.Worker):
                                       return_when=futures.FIRST_COMPLETED)
             else:
                 # wait for a request to finish
-                print(f'nr_conns is {self.nr_conns} limit is {self.worker_connections} waiting for requests to complete.')
+                # print(f'nr_conns is {self.nr_conns} limit is {self.worker_connections} waiting for requests to complete.')
                 result = futures.wait(self.futures, timeout=1.0,
                                       return_when=futures.FIRST_COMPLETED)
 
