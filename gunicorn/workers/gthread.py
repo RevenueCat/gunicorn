@@ -79,6 +79,7 @@ class ThreadWorker(base.Worker):
         self.futures = deque()
         self._keep = deque()
         self.nr_conns = 0
+        print(f'nr_conns reset to {self.nr_conns}, worker limit is {self.worker_connections}')
 
     @classmethod
     def check_config(cls, cfg, log):
@@ -124,6 +125,7 @@ class ThreadWorker(base.Worker):
             conn = TConn(self.cfg, sock, client, server)
 
             self.nr_conns += 1
+            print(f'nr_conns increased by 1 to {self.nr_conns}, worker limit is {self.worker_connections}')
             # wait until socket is readable
             with self._lock:
                 self.poller.register(conn.sock, selectors.EVENT_READ,
@@ -167,6 +169,7 @@ class ThreadWorker(base.Worker):
                 break
             else:
                 self.nr_conns -= 1
+                print(f'nr_conns decreased by 1 to {self.nr_conns}, worker limit is {self.worker_connections}')
                 # remove the socket from the poller
                 with self._lock:
                     try:
@@ -218,6 +221,7 @@ class ThreadWorker(base.Worker):
                                       return_when=futures.FIRST_COMPLETED)
             else:
                 # wait for a request to finish
+                print(f'nr_conns is {self.nr_conns} limit is {self.worker_connections} waiting for requests to complete.')
                 result = futures.wait(self.futures, timeout=1.0,
                                       return_when=futures.FIRST_COMPLETED)
 
@@ -242,6 +246,7 @@ class ThreadWorker(base.Worker):
     def finish_request(self, fs):
         if fs.cancelled():
             self.nr_conns -= 1
+            print(f'nr_conns decreased by 1 to {self.nr_conns}, worker limit is {self.worker_connections}')
             fs.conn.close()
             return
 
@@ -263,11 +268,13 @@ class ThreadWorker(base.Worker):
                                          partial(self.on_client_socket_readable, conn))
             else:
                 self.nr_conns -= 1
+                print(f'nr_conns decreased by 1 to {self.nr_conns}, worker limit is {self.worker_connections}')
                 conn.close()
         except Exception:
             # an exception happened, make sure to close the
             # socket.
             self.nr_conns -= 1
+            print(f'nr_conns decreased by 1 to {self.nr_conns}, worker limit is {self.worker_connections}')
             fs.conn.close()
 
     def handle(self, conn):
