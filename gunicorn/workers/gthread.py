@@ -191,34 +191,43 @@ class ThreadWorker(base.Worker):
         return True
 
     def run(self):
-        # init listeners, add them to the event loop
+        # init listeners
+        accepting = False
+        acceptors = []
         for sock in self.sockets:
             sock.setblocking(False)
             # a race condition during graceful shutdown may make the listener
             # name unavailable in the request handler so capture it once here
             server = sock.getsockname()
             acceptor = partial(self.accept, server)
-            self.poller.register(sock, selectors.EVENT_READ, acceptor)
+            acceptors.append((sock, acceptor))
 
         while self.alive:
             # notify the arbiter we are alive
             self.notify()
 
             # can we accept more connections?
-            if self.nr_conns < self.worker_connections:
-                # wait for an event
-                events = self.poller.select(1.0)
-                for key, _ in events:
-                    callback = key.data
-                    callback(key.fileobj)
+            if self.nr_conns < self.worker_connections and not accepting:
+                for sock, acceptor in acceptors:
+                    self.poller.register(sock, selectors.EVENT_READ, acceptor)
+                accepting = True
 
-                # check (but do not wait) for finished requests
-                result = futures.wait(self.futures, timeout=0,
-                                      return_when=futures.FIRST_COMPLETED)
-            else:
-                # wait for a request to finish
-                result = futures.wait(self.futures, timeout=1.0,
-                                      return_when=futures.FIRST_COMPLETED)
+            # otherwise, stop accepting new connections
+            elif self.nr_conns >= self.worker_connections and accepting:
+                for sock, _ in acceptors:
+                    self.poller.unregister(sock)
+                accepting = False
+
+            # wait for an event
+            events = self.poller.select(1.0)
+            for key, _ in events:
+                callback = key.data
+                callback(key.fileobj)
+
+            # check (but do not wait) for finished requests
+            result = futures.wait(
+                self.futures, timeout=0, return_when=futures.FIRST_COMPLETED
+            )
 
             # clean up finished requests
             for fut in result.done:
